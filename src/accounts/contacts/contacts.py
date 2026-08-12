@@ -28,12 +28,11 @@ from flask import Flask, jsonify, request
 import bleach
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 
-from opentelemetry import trace
+from opentelemetry import propagate, trace
+from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.propagate import set_global_textmap
-from opentelemetry.exporter.cloud_trace import CloudTraceSpanExporter
-from opentelemetry.propagators.cloud_trace_propagator import CloudTraceFormatPropagator
 from opentelemetry.instrumentation.flask import FlaskInstrumentor
 
 from db import ContactsDb
@@ -196,16 +195,19 @@ def create_app():
     app.logger.setLevel(logging.getLogger("gunicorn.error").level)
     app.logger.info("Starting contacts service.")
 
-    # Set up tracing and export spans to Cloud Trace.
+    # Set up tracing and export spans via OpenTelemetry OTLP exporter to ADOT Collector.
     if os.environ['ENABLE_TRACING'] == "true":
         app.logger.info("✅ Tracing enabled.")
-        # Set up tracing and export spans to Cloud Trace
         trace.set_tracer_provider(TracerProvider())
-        cloud_trace_exporter = CloudTraceSpanExporter()
-        trace.get_tracer_provider().add_span_processor(
-            BatchSpanProcessor(cloud_trace_exporter)
+        propagate.set_global_textmap(TraceContextTextMapPropagator())
+        otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
+        otlp_exporter = OTLPSpanExporter(
+            endpoint=otlp_endpoint,
+            insecure=True,
         )
-        set_global_textmap(CloudTraceFormatPropagator())
+        trace.get_tracer_provider().add_span_processor(
+            BatchSpanProcessor(otlp_exporter)
+        )
         FlaskInstrumentor().instrument_app(app)
     else:
         app.logger.info("🚫 Tracing disabled.")
@@ -216,8 +218,31 @@ def create_app():
     app.config["PUBLIC_KEY"] = open(os.environ.get("PUB_KEY_PATH"), "r").read()
 
     # Configure database connection
+    def _build_accounts_db_uri():
+        uri = os.environ.get("ACCOUNTS_DB_URI")
+        if uri:
+            return uri
+
+        db_name = os.environ.get("ACCOUNTS_DB_NAME", "accounts-db")
+        db_host = os.environ.get("ACCOUNTS_DB_HOST")
+        db_port = os.environ.get("ACCOUNTS_DB_PORT", "5432")
+        db_user = os.environ.get("ACCOUNTS_DB_USER")
+        db_password = os.environ.get("ACCOUNTS_DB_PASSWORD")
+
+        if not all([db_host, db_user, db_password]):
+            raise OperationalError(
+                "Missing account database connection settings",
+                None,
+                None,
+            )
+
+        return (
+            "postgresql://"
+            f"{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+        )
+
     try:
-        contacts_db = ContactsDb(os.environ.get("ACCOUNTS_DB_URI"), app.logger)
+        contacts_db = ContactsDb(_build_accounts_db_uri(), app.logger)
     except OperationalError:
         app.logger.critical("database connection failed")
         sys.exit(1)

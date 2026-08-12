@@ -77,7 +77,9 @@ spec:
                 name: environment-config
             - configMapRef:
                 name: accounts-db-config
-          image: us-central1-docker.pkg.dev/bank-of-anthos-ci/bank-of-anthos/contacts:v0.6.10@sha256:90d47594270e64f8dafa6da52c89ff70c2483cca0821dff2cc38b1450ac7a6b9
+            - secretRef:
+                name: rds-db-config
+          image: 123456789012.dkr.ecr.us-east-1.amazonaws.com/bank-of-anthos/contacts:v0.6.10
           name: contacts
           readinessProbe:
             httpGet:
