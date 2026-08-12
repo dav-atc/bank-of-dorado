@@ -18,11 +18,8 @@ package anthos.samples.bankofanthos.balancereader;
 
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.CacheStats;
-import io.micrometer.core.instrument.Clock;
-import io.micrometer.core.instrument.binder.cache.GuavaCacheMetrics;
-import io.micrometer.core.lang.Nullable;
-import io.micrometer.stackdriver.StackdriverConfig;
-import io.micrometer.stackdriver.StackdriverMeterRegistry;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.concurrent.ExecutionException;
 
 import com.auth0.jwt.JWTVerifier;
@@ -76,23 +73,7 @@ class BalanceReaderControllerTest {
     @BeforeEach
     void setUp() {
         initMocks(this);
-        StackdriverMeterRegistry meterRegistry = new StackdriverMeterRegistry(new StackdriverConfig() {
-            @Override
-            public boolean enabled() {
-                return false;
-            }
-
-            @Override
-            public String projectId() {
-                return "test";
-            }
-
-            @Override
-            @Nullable
-            public String get(String key) {
-                return null;
-            }
-        }, clock);
+        MeterRegistry meterRegistry = new SimpleMeterRegistry();
 
         when(cache.stats()).thenReturn(stats);
         balanceReaderController = new BalanceReaderController(ledgerReader, verifier,

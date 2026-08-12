@@ -16,9 +16,10 @@
 
 package anthos.samples.bankofanthos.balancereader;
 
-import com.google.cloud.MetadataConfig;
-import io.micrometer.stackdriver.StackdriverConfig;
-import io.micrometer.stackdriver.StackdriverMeterRegistry;
+import io.micrometer.cloudwatch2.CloudWatchConfig;
+import io.micrometer.cloudwatch2.CloudWatchMeterRegistry;
+import io.micrometer.core.instrument.Clock;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.util.HashMap;
 import java.util.Map;
 import javax.annotation.PreDestroy;
@@ -29,6 +30,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.actuate.autoconfigure.tracing.zipkin.ZipkinAutoConfiguration;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
+import software.amazon.awssdk.services.cloudwatch.CloudWatchAsyncClient;
 
 /**
  * Entry point for the BalanceReader Spring Boot application.
@@ -74,19 +76,19 @@ public class BalanceReaderApplication {
     }
 
     /**
-     * Initializes Meter Registry with custom Stackdriver configuration
+     * Initializes Meter Registry with custom CloudWatch configuration
      *
-     * @return the StackdriverMeterRegistry with configuration
+     * @return the MeterRegistry with configuration
      */
     @Bean
-    public static StackdriverMeterRegistry stackdriver() {
-        return StackdriverMeterRegistry.builder(new StackdriverConfig() {
+    public static MeterRegistry meterRegistry() {
+        CloudWatchConfig cloudWatchConfig = new CloudWatchConfig() {
             @Override
             public boolean enabled() {
                 boolean enableMetricsExport = true;
 
                 if (System.getenv("ENABLE_METRICS") != null
-                    && System.getenv("ENABLE_METRICS").equals("false")) {
+                    && System.getenv("ENABLE_METRICS").equalsIgnoreCase("false")) {
                     enableMetricsExport = false;
                 }
 
@@ -95,38 +97,21 @@ public class BalanceReaderApplication {
                 return enableMetricsExport;
             }
 
-
-            @Override
-            public String projectId() {
-                String id = MetadataConfig.getProjectId();
-                if (id == null) {
-                    id = "";
-                }
-                return id;
-            }
-
             @Override
             public String get(String key) {
                 return null;
             }
-            @Override
-            public String resourceType() {
-                return "k8s_container";
-            }
 
             @Override
-            public Map<String, String> resourceLabels() {
-                Map<String, String> map = new HashMap<>();
-                String podName = System.getenv("HOSTNAME");
-                String containerName = podName.substring(0,
-                    podName.indexOf("-"));
-                map.put("location", MetadataConfig.getZone());
-                map.put("container_name", containerName);
-                map.put("pod_name", podName);
-                map.put("cluster_name", MetadataConfig.getClusterName());
-                map.put("namespace_name", System.getenv("NAMESPACE"));
-                return map;
+            public String namespace() {
+                return "BalanceReader";
             }
-        }).build();
+        };
+
+        return new CloudWatchMeterRegistry(
+            cloudWatchConfig,
+            Clock.SYSTEM,
+            CloudWatchAsyncClient.builder().build()
+        );
     }
 }
