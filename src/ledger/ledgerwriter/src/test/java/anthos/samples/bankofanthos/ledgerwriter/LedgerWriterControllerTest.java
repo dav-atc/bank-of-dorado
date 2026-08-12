@@ -31,10 +31,8 @@ import com.auth0.jwt.JWTVerifier;
 import com.auth0.jwt.exceptions.JWTVerificationException;
 import com.auth0.jwt.interfaces.Claim;
 import com.auth0.jwt.interfaces.DecodedJWT;
-import io.micrometer.core.instrument.Clock;
-import io.micrometer.core.lang.Nullable;
-import io.micrometer.stackdriver.StackdriverConfig;
-import io.micrometer.stackdriver.StackdriverMeterRegistry;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -62,8 +60,6 @@ class LedgerWriterControllerTest {
     private DecodedJWT jwt;
     @Mock
     private Claim claim;
-    @Mock
-    private Clock clock;
 
     private static final String VERSION = "v0.1.0";
     private static final String LOCAL_ROUTING_NUM = "123456789";
@@ -80,23 +76,7 @@ class LedgerWriterControllerTest {
     @BeforeEach
     void setUp() {
         initMocks(this);
-        StackdriverMeterRegistry meterRegistry = new StackdriverMeterRegistry(new StackdriverConfig() {
-              @Override
-              public boolean enabled() {
-                return false;
-              }
-
-              @Override
-              public String projectId() {
-                return "test";
-              }
-
-              @Override
-              @Nullable
-              public String get(String key) {
-                return null;
-              }
-          }, clock);
+        MeterRegistry meterRegistry = new SimpleMeterRegistry();
 
         ledgerWriterController = new LedgerWriterController(verifier,
                 meterRegistry,

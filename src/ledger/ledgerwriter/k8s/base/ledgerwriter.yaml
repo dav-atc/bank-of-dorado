@@ -41,7 +41,7 @@ spec:
               - all
           privileged: false
           readOnlyRootFilesystem: true
-        image: ledgerwriter
+        image: ACCOUNT_ID.dkr.ecr.REGION.amazonaws.com/bank-of-dorado/ledgerwriter:latest
         env:
         - name: VERSION
           value: "dev"

@@ -16,12 +16,13 @@
 
 package anthos.samples.bankofanthos.ledgerwriter;
 
-import com.google.cloud.MetadataConfig;
-import io.micrometer.stackdriver.StackdriverConfig;
-import io.micrometer.stackdriver.StackdriverMeterRegistry;
+import io.micrometer.cloudwatch2.CloudWatchConfig;
+import io.micrometer.cloudwatch2.CloudWatchMeterRegistry;
+import io.micrometer.core.instrument.Clock;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.util.HashMap;
 import java.util.Map;
-import javax.annotation.PreDestroy;
+import jakarta.annotation.PreDestroy;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -30,6 +31,7 @@ import org.springframework.boot.actuate.autoconfigure.tracing.zipkin.ZipkinAutoC
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.web.client.RestTemplate;
+import software.amazon.awssdk.services.cloudwatch.CloudWatchAsyncClient;
 
 /**
  * Entry point for the LedgerWriter Spring Boot application.
@@ -80,20 +82,19 @@ public class LedgerWriterApplication {
     }
 
     /**
-     * Initializes Meter Registry with custom Stackdriver configuration
+     * Initializes Meter Registry with custom CloudWatch configuration
      *
-     * @return the StackdriverMeterRegistry with configuration
+     * @return the MeterRegistry with configuration
      */
     @Bean
-    public static StackdriverMeterRegistry stackdriver() {
-
-        return StackdriverMeterRegistry.builder(new StackdriverConfig() {
+    public static MeterRegistry meterRegistry() {
+        CloudWatchConfig cloudWatchConfig = new CloudWatchConfig() {
             @Override
             public boolean enabled() {
                 boolean enableMetricsExport = true;
 
                 if (System.getenv("ENABLE_METRICS") != null
-                    && System.getenv("ENABLE_METRICS").equals("false")) {
+                    && System.getenv("ENABLE_METRICS").equalsIgnoreCase("false")) {
                     enableMetricsExport = false;
                 }
 
@@ -103,36 +104,20 @@ public class LedgerWriterApplication {
             }
 
             @Override
-            public String projectId() {
-                String id = MetadataConfig.getProjectId();
-                if (id == null) {
-                    id = "";
-                }
-                return id;
-            }
-
-            @Override
             public String get(String key) {
                 return null;
             }
-            @Override
-            public String resourceType() {
-                return "k8s_container";
-            }
 
             @Override
-            public Map<String, String> resourceLabels() {
-                Map<String, String> map = new HashMap<>();
-                String podName = System.getenv("HOSTNAME");
-                String containerName = podName.substring(0,
-                    podName.indexOf("-"));
-                map.put("location", MetadataConfig.getZone());
-                map.put("container_name", containerName);
-                map.put("pod_name", podName);
-                map.put("cluster_name", MetadataConfig.getClusterName());
-                map.put("namespace_name", System.getenv("NAMESPACE"));
-                return map;
+            public String namespace() {
+                return "LedgerWriter";
             }
-        }).build();
+        };
+
+        return new CloudWatchMeterRegistry(
+            cloudWatchConfig,
+            Clock.SYSTEM,
+            CloudWatchAsyncClient.builder().build()
+        );
     }
 }
