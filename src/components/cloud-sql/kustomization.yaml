@@ -15,20 +15,19 @@
 apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
 patches:
-  - path: cloud-sql-proxy/add-container.yaml 
-    target:
-      kind: Deployment
-  - path: cloud-sql-proxy/add-container.yaml
-    target:
-      kind: Job
-  - path: cloud-sql-proxy/replace-args-job.yaml
-    target:
-      kind: Job
   - path: ledger-db.yaml
     target:
       kind: ConfigMap
       name: ledger-db-config
+  - path: ledger-db.yaml
+    target:
+      kind: Secret
+      name: rds-db-config
   - path: accounts-db.yaml
     target:
       kind: ConfigMap
       name: accounts-db-config
+  - path: accounts-db.yaml
+    target:
+      kind: Secret
+      name: rds-db-config
